@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/auth';
+import { authApi } from '@/lib/api/auth';
 import AuthLayout from '@/components/auth/AuthLayout';
 import { Eye, EyeOff, Loader2, Mail, Lock, User, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -35,6 +36,7 @@ export default function RegisterPage() {
   const {
     register,
     handleSubmit,
+    setError: setFieldError,
     formState: { errors },
   } = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -43,24 +45,28 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormValues) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      // Mocking API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const mockUser = {
-        id: 2,
+      const result = await authApi.register({
         name: data.name,
         email: data.email,
-        role: 'user' as const,
-        email_verified: false,
-        created_at: new Date().toISOString(),
-      };
-      
-      login(mockUser, 'mock-jwt-token-new');
+        password: data.password,
+        password_confirmation: data.password_confirmation,
+      });
+      login(result.user, result.token);
       router.push('/');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed. Try again later.');
+      const status = err.response?.status;
+      if (status === 422) {
+        const fieldErrors = err.response.data?.errors ?? {};
+        Object.entries(fieldErrors).forEach(([field, messages]) => {
+          setFieldError(field as keyof RegisterFormValues, {
+            message: (messages as string[])[0],
+          });
+        });
+      } else {
+        setError(err.response?.data?.message || 'Registration failed. Try again later.');
+      }
     } finally {
       setIsLoading(false);
     }

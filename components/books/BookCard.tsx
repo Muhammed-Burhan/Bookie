@@ -40,8 +40,8 @@ export default function BookCard({ book, priority = false }: BookCardProps) {
         
         {/* Quick Action Button */}
         <div className="absolute bottom-4 left-4 right-4 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
-          <Link 
-            href={`/books/${book.openlibrary_key}`}
+          <Link
+            href={`/books/${book.id}`}
             className="flex items-center justify-center gap-2 w-full py-3 bg-accent text-bg-primary font-bold rounded-xl text-sm shadow-xl"
           >
             Review Book <ArrowRight size={16} />

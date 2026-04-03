@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Sparkles, User, Bot, Loader2, CheckCircle2, Star } from 'lucide-react';
+import { Send, Sparkles, User, Bot, Loader2, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { InterviewMessage, Book } from '@/lib/types';
+import { InterviewMessage, Book, Rating } from '@/lib/types';
+import { ratingsApi } from '@/lib/api/ratings';
 
 interface RatingInterviewProps {
   book: Book;
@@ -12,12 +13,12 @@ interface RatingInterviewProps {
 }
 
 export default function RatingInterview({ book, onComplete }: RatingInterviewProps) {
-  const [messages, setMessages] = useState<InterviewMessage[]>([
-    { role: 'assistant', content: `Greetings. I am your literary guide. Let's explore your thoughts on "${book.title}". What was your first impression when you finished the last page?` }
-  ]);
+  const [messages, setMessages] = useState<InterviewMessage[]>([]);
+  const [ratingId, setRatingId] = useState<number | null>(null);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isCompleted, setIsCompleted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom
@@ -27,42 +28,62 @@ export default function RatingInterview({ book, onComplete }: RatingInterviewPro
     }
   }, [messages, isTyping]);
 
+  // Start the interview on mount
+  useEffect(() => {
+    const startInterview = async () => {
+      setIsTyping(true);
+      try {
+        const rating = await ratingsApi.start(book.id);
+        setRatingId(rating.id);
+        if (rating.current_question) {
+          setMessages([{ role: 'assistant', content: rating.current_question }]);
+        }
+      } catch (err: any) {
+        const msg = err.response?.data?.message || 'Failed to start interview. Please try again.';
+        setError(msg);
+      } finally {
+        setIsTyping(false);
+      }
+    };
+    startInterview();
+  }, [book.id]);
+
   const handleSend = async () => {
-    if (!inputValue.trim() || isTyping) return;
+    if (!inputValue.trim() || isTyping || !ratingId) return;
 
     const userMessage: InterviewMessage = { role: 'user', content: inputValue };
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setInputValue('');
     setIsTyping(true);
 
-    // Mocking AI response logic
-    setTimeout(() => {
-      const responses = [
-        "That's a fascinating perspective. How did the author's prose affect your immersion in the world?",
-        "I see. Many readers feel similarly. Tell me, which character resonated with you most, and why?",
-        "Interesting. Based on your insights, I'm starting to form a clear picture of your experience. One final question: would you recommend this to someone seeking a soul-stirring narrative?"
-      ];
+    try {
+      const updated = await ratingsApi.answer(ratingId, userMessage.content);
 
-      if (messages.filter(m => m.role === 'assistant').length < 3) {
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: responses[messages.filter(m => m.role === 'assistant').length - 1] 
-        }]);
-      } else {
-        // Complete the interview
-        finishInterview();
+      if (updated.is_completed) {
+        setIsCompleted(true);
+        // Finalize and get score
+        const final = await ratingsApi.complete(ratingId);
+        setTimeout(() => {
+          onComplete(final.score ?? 0, final.ai_explanation ?? '');
+        }, 1500);
+      } else if (updated.current_question) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: updated.current_question! }]);
       }
+    } catch (err: any) {
+      const msg = err.response?.data?.message || 'Something went wrong. Please try again.';
+      setMessages((prev) => [...prev, { role: 'assistant', content: msg }]);
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
-  const finishInterview = () => {
-    setIsCompleted(true);
-    // In a real app, we'd send the full transcript to the AI to calculate the score
-    setTimeout(() => {
-      onComplete(9.4, "Your deep appreciation for the atmospheric prose and the moral ambiguity of the protagonist suggests a profound connection to the work's core themes.");
-    }, 2000);
-  };
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[400px] gap-4 text-center">
+        <p className="text-error font-medium">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[600px] w-full max-w-2xl mx-auto bg-bg-secondary rounded-3xl border border-border shadow-2xl overflow-hidden glass">
@@ -83,7 +104,7 @@ export default function RatingInterview({ book, onComplete }: RatingInterviewPro
       </div>
 
       {/* Messages Area */}
-      <div 
+      <div
         ref={scrollRef}
         className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-hide"
       >
@@ -107,15 +128,15 @@ export default function RatingInterview({ book, onComplete }: RatingInterviewPro
               </div>
               <div className={cn(
                 "p-4 rounded-2xl text-sm leading-relaxed",
-                msg.role === 'user' 
-                  ? "bg-accent/10 border border-accent/20 text-white" 
+                msg.role === 'user'
+                  ? "bg-accent/10 border border-accent/20 text-white"
                   : "bg-bg-tertiary/50 border border-border/50 text-text-muted"
               )}>
                 {msg.content}
               </div>
             </motion.div>
           ))}
-          
+
           {isTyping && (
             <motion.div
               initial={{ opacity: 0 }}
@@ -160,20 +181,21 @@ export default function RatingInterview({ book, onComplete }: RatingInterviewPro
               type="text"
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
               placeholder="Share your thoughts..."
-              className="w-full bg-bg-tertiary border border-border rounded-xl py-4 pl-6 pr-14 text-white focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all group-hover:border-border-hover"
+              disabled={isTyping || !ratingId}
+              className="w-full bg-bg-tertiary border border-border rounded-xl py-4 pl-6 pr-14 text-white focus:outline-none focus:ring-2 focus:ring-accent/50 focus:border-accent transition-all group-hover:border-border-hover disabled:opacity-50"
             />
             <button
               onClick={handleSend}
-              disabled={!inputValue.trim() || isTyping}
+              disabled={!inputValue.trim() || isTyping || !ratingId}
               className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-accent text-bg-primary hover:bg-accent-hover active:scale-95 transition-all disabled:opacity-50"
             >
               <Send size={18} />
             </button>
           </div>
           <p className="text-[10px] text-text-muted/50 mt-3 text-center uppercase tracking-[0.2em]">
-            Powered by Bookie Semantic Engine v2.1
+            Powered by Bookie Semantic Engine
           </p>
         </div>
       )}

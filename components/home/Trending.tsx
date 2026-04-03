@@ -1,13 +1,21 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { TrendingUp, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import BookCard from '../books/BookCard';
-import { MOCK_BOOKS } from '@/lib/mock-data';
+import { booksApi } from '@/lib/api/books';
+import { Book } from '@/lib/types';
 
 export default function Trending() {
-  const trendingBooks = MOCK_BOOKS.slice(0, 4);
+  const [books, setBooks] = useState<Book[]>([]);
+
+  useEffect(() => {
+    booksApi.list({ sort: 'rating' })
+      .then((res) => setBooks(res.data.slice(0, 4)))
+      .catch(() => setBooks([]));
+  }, []);
 
   return (
     <section className="py-24 bg-bg-primary relative overflow-hidden">
@@ -52,19 +60,27 @@ export default function Trending() {
           </motion.div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {trendingBooks.map((book, index) => (
-            <motion.div
-              key={book.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <BookCard book={book} />
-            </motion.div>
-          ))}
-        </div>
+        {books.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {books.map((book, index) => (
+              <motion.div
+                key={book.id}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <BookCard book={book} />
+              </motion.div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="rounded-3xl bg-bg-secondary border border-border h-72 animate-pulse" />
+            ))}
+          </div>
+        )}
 
         {/* Feature Teaser */}
         <motion.div
@@ -74,7 +90,7 @@ export default function Trending() {
           className="mt-24 p-12 rounded-3xl bg-gradient-to-br from-bg-secondary to-bg-tertiary border border-border/50 relative overflow-hidden group"
         >
           <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 blur-[100px] group-hover:bg-accent/10 transition-colors" />
-          
+
           <div className="relative z-10 grid md:grid-cols-2 items-center gap-12">
             <div className="space-y-6 text-left">
               <h3 className="text-3xl md:text-4xl font-playfair font-bold text-white leading-tight">
@@ -82,7 +98,7 @@ export default function Trending() {
                 <span className="text-accent underline underline-offset-8 decoration-accent/30">Let our AI guide you.</span>
               </h3>
               <p className="text-text-muted text-lg max-w-md font-medium">
-                The Rating Interview analyzes your subconscious literary preferences to provide 
+                The Rating Interview analyzes your subconscious literary preferences to provide
                 recommendations that actually resonate.
               </p>
               <Link
@@ -92,7 +108,7 @@ export default function Trending() {
                 Start Your Interview <TrendingUp size={20} />
               </Link>
             </div>
-            
+
             <div className="hidden md:flex relative justify-center">
               <div className="w-64 h-48 rounded-2xl bg-white/5 border border-white/10 glass rotate-3 animate-float flex items-center justify-center">
                 <span className="text-accent font-jetbrains text-4xl font-black">98.5%</span>

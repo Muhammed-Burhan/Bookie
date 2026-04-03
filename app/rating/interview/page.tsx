@@ -1,25 +1,51 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import RatingInterview from '@/components/rating/RatingInterview';
-import { MOCK_BOOKS } from '@/lib/mock-data';
+import { booksApi } from '@/lib/api/books';
+import { Book } from '@/lib/types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Star, ArrowLeft, Share2, Download, CheckCircle2, Loader2 } from 'lucide-react';
+import { Star, ArrowLeft, Share2, CheckCircle2, Loader2 } from 'lucide-react';
 import { cn, formatScore, getRatingColorTheme } from '@/lib/utils';
 import Link from 'next/link';
 
 function InterviewContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const bookId = parseInt(searchParams.get('bookId') || '1');
-  const book = MOCK_BOOKS.find(b => b.id === bookId) || MOCK_BOOKS[0];
+  const bookId = parseInt(searchParams.get('bookId') || '0');
 
+  const [book, setBook] = useState<Book | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [result, setResult] = useState<{ score: number; explanation: string } | null>(null);
+
+  useEffect(() => {
+    if (!bookId) {
+      router.push('/search');
+      return;
+    }
+    booksApi.get(bookId)
+      .then(setBook)
+      .catch(() => router.push('/search'))
+      .finally(() => setIsLoading(false));
+  }, [bookId, router]);
 
   const handleComplete = (score: number, explanation: string) => {
     setResult({ score, explanation });
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg-primary">
+        <div className="flex flex-col items-center gap-6">
+          <Loader2 className="animate-spin text-accent" size={48} />
+          <p className="text-text-muted font-jetbrains text-xs uppercase tracking-[0.3em] animate-pulse">Initializing Literary Gateway...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!book) return null;
 
   if (result) {
     return (
@@ -29,7 +55,6 @@ function InterviewContent() {
           animate={{ opacity: 1, scale: 1 }}
           className="w-full relative p-12 rounded-[40px] bg-bg-secondary border border-border overflow-hidden glass shadow-2xl"
         >
-          {/* Decorative elements */}
           <div className="absolute -top-24 -left-24 w-64 h-64 bg-accent/20 rounded-full blur-[100px]" />
           <div className="absolute -bottom-24 -right-24 w-64 h-64 bg-secondary/10 rounded-full blur-[100px]" />
 
@@ -48,35 +73,25 @@ function InterviewContent() {
               </h2>
             </div>
 
-            {/* Score reveal circle */}
+            {/* Score reveal */}
             <div className="relative flex items-center justify-center py-8">
               <motion.div
                 initial={{ opacity: 0, scale: 0.5 }}
                 animate={{ opacity: 1, scale: 1 }}
-                transition={{ 
-                  type: "spring",
-                  stiffness: 100,
-                  damping: 15,
-                  delay: 0.4 
-                }}
+                transition={{ type: "spring", stiffness: 100, damping: 15, delay: 0.4 }}
                 className="w-56 h-56 rounded-full border-8 border-bg-tertiary flex items-center justify-center relative overflow-hidden shadow-2xl shadow-accent/20"
               >
                 <div className="absolute inset-2 border-2 border-dashed border-border rounded-full animate-slow-spin" />
                 <div className="flex flex-col items-center">
-                  <motion.span 
+                  <motion.span
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     transition={{ delay: 0.8 }}
-                    className={cn(
-                      "text-8xl font-jetbrains font-black leading-none",
-                      getRatingColorTheme(result.score)
-                    )}
+                    className={cn("text-8xl font-jetbrains font-black leading-none", getRatingColorTheme(result.score))}
                   >
                     {formatScore(result.score)}
                   </motion.span>
-                  <span className="text-sm font-bold text-text-muted mt-2 uppercase tracking-widest">
-                    Score / 10
-                  </span>
+                  <span className="text-sm font-bold text-text-muted mt-2 uppercase tracking-widest">Score / 10</span>
                 </div>
               </motion.div>
             </div>
@@ -102,12 +117,18 @@ function InterviewContent() {
                 transition={{ delay: 1.4 }}
                 className="flex flex-wrap items-center justify-center gap-4 pt-8"
               >
-                <button className="px-8 py-4 bg-accent text-bg-primary font-bold rounded-xl flex items-center gap-2 hover:bg-accent-hover transition-all">
-                  <Share2 size={20} /> Share Result
-                </button>
-                <button className="px-8 py-4 bg-bg-tertiary border border-border text-white font-bold rounded-xl flex items-center gap-2 hover:bg-bg-secondary transition-all">
-                  <Download size={20} /> Save Report
-                </button>
+                <Link
+                  href="/feed"
+                  className="px-8 py-4 bg-accent text-bg-primary font-bold rounded-xl flex items-center gap-2 hover:bg-accent-hover transition-all"
+                >
+                  View in Feed
+                </Link>
+                <Link
+                  href={`/books/${book.id}`}
+                  className="px-8 py-4 bg-bg-tertiary border border-border text-white font-bold rounded-xl flex items-center gap-2 hover:bg-bg-secondary transition-all"
+                >
+                  Back to Book
+                </Link>
               </motion.div>
             </div>
           </div>
@@ -131,8 +152,8 @@ function InterviewContent() {
       <div className="max-w-7xl mx-auto space-y-12">
         <div className="flex flex-col md:flex-row items-center justify-between gap-8">
           <div className="space-y-4">
-            <Link 
-              href="/"
+            <Link
+              href={`/books/${book.id}`}
               className="inline-flex items-center gap-2 text-text-muted hover:text-accent font-bold transition-all"
             >
               <ArrowLeft size={20} /> Exit Interview
@@ -147,7 +168,9 @@ function InterviewContent() {
 
           <div className="hidden lg:flex items-center gap-6 p-6 rounded-3xl bg-bg-secondary border border-border glass max-w-sm">
             <div className="w-24 h-32 rounded-lg overflow-hidden border border-border flex-shrink-0">
-              <img src={book.cover_url} alt={book.title} className="w-full h-full object-cover" />
+              {book.cover_url && (
+                <img src={book.cover_url} alt={book.title} className="w-full h-full object-cover" />
+              )}
             </div>
             <div className="space-y-2">
               <h4 className="font-bold text-white leading-tight">{book.title}</h4>
@@ -160,10 +183,7 @@ function InterviewContent() {
           </div>
         </div>
 
-        <RatingInterview
-          book={book}
-          onComplete={handleComplete}
-        />
+        <RatingInterview book={book} onComplete={handleComplete} />
       </div>
     </div>
   );
@@ -175,7 +195,7 @@ export default function InterviewPage() {
       <div className="min-h-screen flex items-center justify-center bg-bg-primary">
         <div className="flex flex-col items-center gap-6">
           <Loader2 className="animate-spin text-accent" size={48} />
-          <p className="text-text-muted font-jetbrains uppercase tracking-widest animate-pulse">Initializing Literary Gateway...</p>
+          <p className="text-text-muted font-jetbrains text-xs uppercase tracking-[0.3em] animate-pulse">Initializing Literary Gateway...</p>
         </div>
       </div>
     }>

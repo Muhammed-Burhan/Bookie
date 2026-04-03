@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useAuthStore } from '@/lib/store/auth';
+import { authApi } from '@/lib/api/auth';
 import { usePathname } from 'next/navigation';
-import { Book, User, Search, LogOut, Menu, X } from 'lucide-react';
+import { Book, Search, LogOut, Menu, X, LayoutDashboard } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils'; // I will create this utils file next
+import { cn } from '@/lib/utils';
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuthStore();
@@ -13,10 +14,13 @@ export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const handleLogout = async () => {
+    try { await authApi.logout(); } catch { /* token already invalid */ }
+    logout();
+  };
+
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 20);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 20);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -27,14 +31,15 @@ export default function Navbar() {
     { name: 'Suggestions', href: '/suggestions', protected: true },
   ];
 
+  const isAdmin = user?.role === 'admin';
+
   return (
-    <nav
-      className={cn(
-        'fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-6 py-4',
-        isScrolled ? 'glass py-3' : 'bg-transparent'
-      )}
-    >
+    <nav className={cn(
+      'fixed top-0 left-0 right-0 z-50 transition-all duration-300 px-6 py-4',
+      isScrolled ? 'glass py-3' : 'bg-transparent'
+    )}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
+
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
           <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center text-bg-primary transform group-hover:rotate-12 transition-transform">
@@ -64,21 +69,30 @@ export default function Navbar() {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4">
-          <Link
-            href="/search"
-            className="p-2 text-text-muted hover:text-accent transition-colors"
-            title="Search Books"
-          >
+        <div className="flex items-center gap-3">
+          <Link href="/search" className="p-2 text-text-muted hover:text-accent transition-colors" title="Search Books">
             <Search size={20} />
           </Link>
 
           {isAuthenticated ? (
-            <div className="flex items-center gap-4">
-              <Link
-                href="/profile/me"
-                className="flex items-center gap-2 group"
-              >
+            <div className="flex items-center gap-3">
+              {/* Admin dashboard button — always visible for admins */}
+              {isAdmin && (
+                <Link
+                  href="/admin/dashboard"
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border transition-all',
+                    pathname.startsWith('/admin')
+                      ? 'bg-accent text-bg-primary border-accent'
+                      : 'bg-bg-secondary border-border text-accent hover:bg-accent hover:text-bg-primary'
+                  )}
+                >
+                  <LayoutDashboard size={14} />
+                  <span className="hidden sm:block">Admin</span>
+                </Link>
+              )}
+
+              <Link href="/profile/me" className="flex items-center gap-2 group">
                 <div className="w-8 h-8 rounded-full bg-bg-tertiary border border-border overflow-hidden">
                   {user?.avatar ? (
                     <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
@@ -92,70 +106,49 @@ export default function Navbar() {
                   {user?.name.split(' ')[0]}
                 </span>
               </Link>
-              <button
-                onClick={logout}
-                className="p-2 text-text-muted hover:text-error transition-colors"
-                title="Logout"
-              >
+
+              <button onClick={handleLogout} className="p-2 text-text-muted hover:text-error transition-colors" title="Logout">
                 <LogOut size={20} />
               </button>
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Link
-                href="/auth/login"
-                className="text-sm font-medium text-text-muted hover:text-white px-4 py-2"
-              >
+              <Link href="/auth/login" className="text-sm font-medium text-text-muted hover:text-white px-4 py-2">
                 Login
               </Link>
-              <Link
-                href="/auth/register"
-                className="text-sm font-semibold bg-accent text-bg-primary px-5 py-2 rounded-lg hover:bg-accent-hover transition-colors"
-              >
+              <Link href="/auth/register" className="text-sm font-semibold bg-accent text-bg-primary px-5 py-2 rounded-lg hover:bg-accent-hover transition-colors">
                 Join
               </Link>
             </div>
           )}
 
-          {/* Mobile Menu Toggle */}
-          <button
-            className="md:hidden p-2 text-text-primary"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
+          <button className="md:hidden p-2 text-text-primary" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
+      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="md:hidden absolute top-full left-0 right-0 bg-bg-secondary border-t border-border p-6 flex flex-col gap-6 animate-in slide-in-from-top duration-300">
           {navLinks.map((link) => (
             (!link.protected || isAuthenticated) && (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="text-lg font-medium"
-                onClick={() => setMobileMenuOpen(false)}
-              >
+              <Link key={link.href} href={link.href} className="text-lg font-medium" onClick={() => setMobileMenuOpen(false)}>
                 {link.name}
               </Link>
             )
           ))}
+          {isAdmin && (
+            <Link href="/admin/dashboard" className="flex items-center gap-2 text-lg font-medium text-accent" onClick={() => setMobileMenuOpen(false)}>
+              <LayoutDashboard size={18} /> Admin Dashboard
+            </Link>
+          )}
           {!isAuthenticated && (
             <div className="flex flex-col gap-4 pt-4 border-t border-border">
-              <Link
-                href="/auth/login"
-                className="w-full py-3 text-center rounded-lg border border-border"
-                onClick={() => setMobileMenuOpen(false)}
-              >
+              <Link href="/auth/login" className="w-full py-3 text-center rounded-lg border border-border" onClick={() => setMobileMenuOpen(false)}>
                 Login
               </Link>
-              <Link
-                href="/auth/register"
-                className="w-full py-3 text-center rounded-lg bg-accent text-bg-primary font-bold"
-                onClick={() => setMobileMenuOpen(false)}
-              >
+              <Link href="/auth/register" className="w-full py-3 text-center rounded-lg bg-accent text-bg-primary font-bold" onClick={() => setMobileMenuOpen(false)}>
                 Register
               </Link>
             </div>

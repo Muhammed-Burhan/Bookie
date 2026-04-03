@@ -4,11 +4,14 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/store/auth';
+import { authApi } from '@/lib/api/auth';
 import AuthLayout from '@/components/auth/AuthLayout';
 import { Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
+import { Suspense } from 'react';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -18,8 +21,9 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const login = useAuthStore((state) => state.login);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,6 +32,7 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
+    setError: setFieldError,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -37,24 +42,28 @@ export default function LoginPage() {
   const onSubmit = async (data: LoginFormValues) => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      // Mocking API call for now - replace with actual client call later
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      const mockUser = {
-        id: 1,
-        name: 'Jane Doe',
+      const result = await authApi.login({
         email: data.email,
-        role: 'user' as const,
-        email_verified: true,
-        created_at: new Date().toISOString(),
-      };
-      
-      login(mockUser, 'mock-jwt-token');
-      router.push('/');
+        password: data.password,
+        revoke_previous: data.remember,
+      });
+      login(result.user, result.token);
+      const next = searchParams.get('next') || (result.user.role === 'admin' ? '/admin/dashboard' : '/');
+      router.push(next);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+      const status = err.response?.status;
+      if (status === 422) {
+        const fieldErrors = err.response.data?.errors ?? {};
+        Object.entries(fieldErrors).forEach(([field, messages]) => {
+          setFieldError(field as keyof LoginFormValues, {
+            message: (messages as string[])[0],
+          });
+        });
+      } else {
+        setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -99,9 +108,9 @@ export default function LoginPage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between ml-1">
               <label className="text-sm font-bold text-text-muted" htmlFor="password">Password</label>
-              <button type="button" className="text-xs font-bold text-accent hover:text-accent-hover transition-colors">
+              <Link href="/auth/forgot-password" className="text-xs font-bold text-accent hover:text-accent-hover transition-colors">
                 Forgot password?
-              </button>
+              </Link>
             </div>
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-text-muted group-focus-within:text-accent transition-colors">
@@ -138,5 +147,13 @@ export default function LoginPage() {
         </button>
       </form>
     </AuthLayout>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

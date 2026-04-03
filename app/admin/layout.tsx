@@ -4,10 +4,10 @@ import { useAuthStore } from '@/lib/store/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { 
-  LayoutDashboard, BookOpen, Users, 
-  MessageSquare, ShieldCheck, LogOut, 
-  Settings, Menu, X, Bell
+import {
+  LayoutDashboard, Users,
+  MessageSquare, ShieldCheck, LogOut,
+  Menu, X, Bell, Clock, ArrowLeft
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -30,10 +30,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const menuItems = [
     { name: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
-    { name: 'Lib Catalog', icon: BookOpen, href: '/admin/books' },
-    { name: 'Curators', icon: Users, href: '/admin/users' },
-    { name: 'AI Ratings', icon: MessageSquare, href: '/admin/ratings' },
-    { name: 'Policies', icon: ShieldCheck, href: '/admin/settings' },
+    { name: 'Users', icon: Users, href: '/admin/users' },
+    { name: 'Opinions', icon: MessageSquare, href: '/admin/opinions' },
+    { name: 'Activity Logs', icon: Clock, href: '/admin/logs' },
   ];
 
   return (
@@ -74,6 +73,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </Link>
             ))}
           </nav>
+
+          {/* Back to site */}
+          <div className="px-4 pb-2">
+            <Link
+              href="/"
+              className="flex items-center gap-3 px-4 py-3 rounded-xl text-text-muted hover:text-white hover:bg-bg-tertiary transition-all text-sm font-bold"
+            >
+              <ArrowLeft size={18} className="flex-shrink-0" />
+              {isSidebarOpen && <span>Back to Site</span>}
+            </Link>
+          </div>
 
           {/* Footer User Profile */}
           <div className="p-4 border-t border-border mt-auto">
